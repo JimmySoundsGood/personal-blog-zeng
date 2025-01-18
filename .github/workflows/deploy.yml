@@ -1,44 +1,89 @@
-# action名称
-name: Publish and Release
+Skip to content
+Navigation Menu
+xuxing409
+my-blog
 
-# 当代码合并到master分支的时候，执行下列脚本
+Type / to search
+Code
+Issues
+Pull requests
+Actions
+Projects
+Security
+Insights
+Deploy Pages
+feat: 项目迁移初始化 #1
+Jobs
+Run details
+Workflow file for this run
+.github/workflows/deploy.yml at 7353cad
+name: Deploy Pages
+
+# 触发条件，push到main分支或者pull request到main分支
 on:
   push:
     branches: [main]
-# 任务
-jobs:
-  publish-npm:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检查master分支
-        uses: actions/checkout@main
+  pull_request:
+    branches: [main]
 
-      - name: 设置Node.js
-        uses: actions/setup-node@main
+  # 支持手动在工作流上触发
+  workflow_dispatch:
+
+# 设置时区
+env:
+  TZ: Asia/Shanghai
+
+# 权限设置
+permissions:
+  # 允许读取仓库内容的权限。
+  contents: read
+  # 允许写入 GitHub Pages 的权限。
+  pages: write
+  # 允许写入 id-token 的权限。
+  id-token: write
+
+# 并发控制配置
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+# 定义执行任务
+jobs:
+  # 构建任务
+  build:
+
+    runs-on: ubuntu-latest
+
+    # node v20 运行
+    strategy:
+      matrix:
+        node-version: [20]
+
+    steps:
+      # 拉取代码
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
-          node-version: 18
-          registry-url: https://registry.npmjs.org/ # 如果不配置将影响publish
+          # 保留 Git 信息
+          fetch-depth: 0
+
+      # 设置使用 Node.js 版本
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
 
       - name: 安装依赖
         run: npm install
 
-      - name: 构建packages
-        run: npm run lib
+      - name: Build
+        run: npm docs:build
 
-      - name: 发布NPM包
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-        run: |
-          npm publish
-      - name: publish 成功通知
-        run: echo npm 推送成功，请访问 https://jimmysoundsgood.github.io/personal-blog-zeng/
-
-      - name: 读取当前版本号
-        id: version
-        uses: ashley-taylor/read-json-property-action@v1.0
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          path: ./package.json
-          property: version
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/.vitepress/dist
 
       - name: 创建GitHub Release
         id: create_release
