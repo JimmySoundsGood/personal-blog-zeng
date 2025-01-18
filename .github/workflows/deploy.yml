@@ -1,97 +1,52 @@
-name: Deploy Pages
+# action名称
+name: Publish and Release
 
-# 触发条件，push到main分支或者pull request到main分支
+# 当代码合并到master分支的时候，执行下列脚本
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-
-  # 支持手动在工作流上触发
-  workflow_dispatch:
-
-# 设置时区
-env:
-  TZ: Asia/Shanghai
-
-# 权限设置
-permissions:
-  # 允许读取仓库内容的权限。
-  contents: read
-  # 允许写入 GitHub Pages 的权限。
-  pages: write
-  # 允许写入 id-token 的权限。
-  id-token: write
-
-# 并发控制配置
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-# 定义执行任务
+# 任务
 jobs:
-  # 构建任务
-  build:
-
+  publish-npm:
     runs-on: ubuntu-latest
-
-    # node v20 运行
-    strategy:
-      matrix:
-        node-version: [20]
-
     steps:
-      # 拉取代码
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: 检查master分支
+        uses: actions/checkout@main
+
+      - name: 设置Node.js
+        uses: actions/setup-node@main
         with:
-          # 保留 Git 信息
-          fetch-depth: 0
+          node-version: 18
+          registry-url: https://registry.npmjs.org/ # 如果不配置将影响publish
 
-      # 设置使用 Node.js 版本
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
+      - name: 安装依赖
+        run: npm install
 
-      # 使用 最新的 PNPM
-      # 你也可以指定为具体的版本
-      - uses: pnpm/action-setup@v2
-        name: Install pnpm
-        with:
-          version: latest
-          # version: 9
-          run_install: false
+      - name: 构建packages
+        run: npm run lib
 
-        # 安装依赖
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-        # 构建项目
-      - name: Build blog project
+      - name: 发布NPM包
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
         run: |
-          echo ${{ github.workspace }}
-          pnpm build
+          npm publish
+      - name: publish 成功通知
+        run: echo npm 推送成功，请访问 https://jimmysoundsgood.github.io/personal-blog-zeng/
 
-        # 资源拷贝
-      - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
+      - name: 读取当前版本号
+        id: version
+        uses: ashley-taylor/read-json-property-action@v1.0
         with:
-          source: ./docs/.vitepress/dist
-          destination: ./_site
+          path: ./package.json
+          property: version
 
-        # 上传 _site 的资源，用于后续部署
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-
-  # 部署任务
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: 创建GitHub Release
+        id: create_release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{steps.version.outputs.value}}
+          release_name: v${{steps.version.outputs.value}}
+          draft: false
+          prerelease: false
