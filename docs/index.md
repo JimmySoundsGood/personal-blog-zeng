@@ -6,6 +6,9 @@ hero:
   name: "My Awesome Project"
   text: "A VitePress Site"
   tagline: My great project tagline
+  image:
+    src: /image/avatar-male.png
+    alt: avatar
   actions:
     - theme: brand
       text: Markdown Examples
@@ -22,4 +25,3 @@ features:
   - title: Feature C
     details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
 ---
-
